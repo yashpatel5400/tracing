@@ -43,40 +43,85 @@ void line(Vec2i v0, Vec2i v1, TGAImage& image, TGAColor color) {
 }
 
 void triangle(Vec2i v0, Vec2i v1, Vec2i v2, TGAImage& image, TGAColor color) {
-    float m0 = float(v1.y - v0.y) / float(v1.x - v0.x);
-    float m1 = float(v2.y - v1.y) / float(v2.x - v1.x);
-    float m2 = float(v0.y - v2.y) / float(v0.x - v2.x);
+    // ATTEMPT #3
+    // std::vector<int> xs = {v0.x, v1.x, v2.x};
+    // std::vector<int> ys = {v0.y, v1.y, v2.y};
 
-    std::vector<int> xs = {v0.x, v1.x, v2.x};
-    std::vector<int> ys = {v0.y, v1.y, v2.y};
-    std::vector<float> ms = {m0, m1, m2};
+    // float m0 = float(v1.y - v0.y) / float(v1.x - v0.x);
+    // float m1 = float(v2.y - v1.y) / float(v2.x - v1.x);
+    // float m2 = float(v0.y - v2.y) / float(v0.x - v2.x);
+    // std::vector<float> ms = {m0, m1, m2};
+    
+    if (v0.y > v1.y) { std::swap(v0, v1); }
+    if (v1.y > v2.y) { std::swap(v1, v2); }
+    if (v0.y > v1.y) { std::swap(v0, v1); }
+    
+    // int minX = std::min(std::min(xs[0], xs[1]), xs[2]);
+    // int maxX = std::max(std::max(xs[0], xs[1]), xs[2]);
 
-    int minX = std::min(std::min(xs[0], xs[1]), xs[2]);
-    int maxX = std::max(std::max(xs[0], xs[1]), xs[2]);
+    for (int y = v0.y; y <= v1.y; y++) {
+        float topAlpha = float(y - v0.y) / (v2.y - v0.y);
+        float bottomAlpha = float(y - v0.y) / (v1.y - v0.y);
 
-    int minY = std::min(std::min(ys[0], ys[1]), ys[2]);
-    int maxY = std::max(std::max(ys[0], ys[1]), ys[2]);
+        auto pointA = std::round(topAlpha * v2.x + (1 - topAlpha) * v0.x);
+        auto pointB = std::round(bottomAlpha * v1.x + (1 - bottomAlpha) * v0.x);
 
-    bool onLine = false;
-    Vec2i startPoint, endPoint;
+        auto start = std::min(pointA, pointB);
+        auto end = std::max(pointA, pointB);
 
-    for (int x = minX; x <= maxX; x++) {
-        for (int y = minY; y <= maxY; y++) {
-            for (int i = 0; i < 3; i++) {
-                int pred = ms[i] * (x - xs[i]) + ys[i];
-                if (y == pred) {
-                    if (onLine) {
-                        endPoint = Vec2i(x, y);
-                        onLine = false;
-                        line(startPoint, endPoint, image, color);
-                    } else {
-                        startPoint = Vec2i(x, y);
-                        onLine = true;
-                    }
-                }
-            }
+        for (int x = start; x <= end; x++) {
+            image.set(x, y, color);
         }
     }
+
+    for (int y = v1.y + 1; y <= v2.y; y++) {
+        float topAlpha = float(y - v0.y) / (v2.y - v0.y);
+        float bottomAlpha = float(y - v1.y) / (v2.y - v1.y);
+
+        auto pointA = std::round(topAlpha * v2.x + (1 - topAlpha) * v0.x);
+        auto pointB = std::round(bottomAlpha * v2.x + (1 - bottomAlpha) * v1.x);
+
+        auto start = std::min(pointA, pointB);
+        auto end = std::max(pointA, pointB);
+
+        for (int x = start; x <= end; x++) {
+            image.set(x, y, color);
+        }
+    }
+    
+    // ATTEMPT #2
+    // float eps = 0.005;
+    // for (float alpha = 0.0; alpha < 1.0; alpha += eps) {
+    //     auto a = v0 * alpha + v1 * (1 - alpha);
+    //     auto b = v0 * alpha + v2 * (1 - alpha);
+    //     line(a, b, image, color);
+    // }
+
+    // ATTEMPT #1    
+    // int minY = std::min(std::min(ys[0], ys[1]), ys[2]);
+    // int maxY = std::max(std::max(ys[0], ys[1]), ys[2]);
+
+    // bool onLine = false;
+    // Vec2i startPoint, endPoint;
+
+    // for (int x = minX; x <= maxX; x++) {
+    //     for (int y = minY; y <= maxY; y++) {
+    //         for (int i = 0; i < 3; i++) {
+    //             int pred = std::round(ms[i] * (x - xs[i]) + ys[i]);
+    //             if (y == pred) {
+    //                 if (onLine) {
+    //                     endPoint = Vec2i(x, y);
+    //                     onLine = false;
+    //                     line(startPoint, endPoint, image, color);
+    //                 } else {
+    //                     startPoint = Vec2i(x, y);
+    //                     onLine = true;
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+    
 
     // std::vector<Vec2i> vertices = { v0, v1, v2 };
     // std::sort(vertices.begin(), vertices.end(), [](const Vec2i& a, const Vec2i& b) {
