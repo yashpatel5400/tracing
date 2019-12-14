@@ -126,16 +126,23 @@ int main() {
 
     Model model("african_head/african_head.obj");
 
+    Vec3f light(0, 0, -1);
     for (int f = 0; f < model.nfaces(); f++) {
         auto w0 = model.vert(f, 0);
         auto w1 = model.vert(f, 1);
         auto w2 = model.vert(f, 2);
+
+        auto norm = cross((w2 - w0), (w1 - w0));
+        norm.normalize();
+        auto intensity = 255.0 * (light * norm);
         
         auto v0 = Vec2i(float(w0.x + 1) * width / 2, float(w0.y + 1) * height / 2);
         auto v1 = Vec2i(float(w1.x + 1) * width / 2, float(w1.y + 1) * height / 2);
         auto v2 = Vec2i(float(w2.x + 1) * width / 2, float(w2.y + 1) * height / 2);
 
-        triangle(v0, v1, v2, image, TGAColor(rand()%255, rand()%255, rand()%255, 255));
+        if (intensity > 0) {
+            triangle(v0, v1, v2, image, TGAColor(intensity, intensity, intensity, 255));
+        }
     }
 
     image.flip_vertically();
