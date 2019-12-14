@@ -12,8 +12,9 @@ const TGAColor red    = TGAColor(255,   0,   0, 255);
 const TGAColor green  = TGAColor(  0, 255,   0, 255);
 const TGAColor blue   = TGAColor(  0,   0, 255, 255);
 
-const int width = 1000;
+const int width  = 1000;
 const int height = 1000;
+const int depth  = 255;
 
 Vec4f toHomogenous(Vec3f vec) {
     Vec4f m;
@@ -35,6 +36,33 @@ Vec3f fromHomogenous(Vec4f vec) {
 Matrix perspectiveShift(float cameraPos) {
     Matrix m = Matrix::identity();
     m[3][2] = -1.0 / cameraPos;
+    return m;
+}
+
+Matrix lookAt(Vec3f eye,  Vec3f center, Vec3f up) {
+    Vec3f z = (eye - center).normalize();
+    Vec3f x = cross(up, z).normalize();
+    Vec3f y = cross(z, x).normalize();
+
+    Matrix m = Matrix::identity();
+    for (int i = 0; i < 3; i++) {
+        m[0][i] = x[i];
+        m[1][i] = y[i];
+        m[2][i] = z[i];
+        m[i][3] = -center[i];
+    }
+    return m;
+}
+
+Matrix viewport(int x, int y, int w, int h) {
+    Matrix m = Matrix::identity();
+    m[0][3] = x+w/2.f;
+    m[1][3] = y+h/2.f;
+    m[2][3] = depth/2.f;
+
+    m[0][0] = w/2.f;
+    m[1][1] = h/2.f;
+    m[2][2] = depth/2.f;
     return m;
 }
 
@@ -104,25 +132,25 @@ void triangleLineSweep(Vec2i v0, Vec2i v1, Vec2i v2, TGAImage& image, TGAColor c
     }
 }
 
-void triangle(const std::vector<Vec3f>& worldCoords, std::vector<TGAColor>& colors, std::vector<float>& zbuffer, TGAImage& image, float intensity) {
-    auto v0 = Vec2i((worldCoords[0].x+1.)*width/2., (worldCoords[0].y+1.)*height/2.);
-    auto v1 = Vec2i((worldCoords[1].x+1.)*width/2., (worldCoords[1].y+1.)*height/2.);
-    auto v2 = Vec2i((worldCoords[2].x+1.)*width/2., (worldCoords[2].y+1.)*height/2.);
+void triangle(const std::vector<Vec3i>& worldCoords, std::vector<TGAColor>& colors, std::vector<float>& zbuffer, TGAImage& image, const std::vector<float>& intensity) {
+    auto v0 = worldCoords[0];
+    auto v1 = worldCoords[1];
+    auto v2 = worldCoords[2];
 
     std::vector<int> xs = {v0.x, v1.x, v2.x};
     std::vector<int> ys = {v0.y, v1.y, v2.y};
 
-    int minX = std::min(std::min(xs[0], xs[1]), xs[2]);
-    int maxX = std::max(std::max(xs[0], xs[1]), xs[2]);
-    int minY = std::min(std::min(ys[0], ys[1]), ys[2]);
-    int maxY = std::max(std::max(ys[0], ys[1]), ys[2]);
+    int minX = std::max(std::min(std::min(xs[0], xs[1]), xs[2]), 0);
+    int maxX = std::min(std::max(std::max(xs[0], xs[1]), xs[2]), width - 1);
+    int minY = std::max(std::min(std::min(ys[0], ys[1]), ys[2]), 0);
+    int maxY = std::min(std::max(std::max(ys[0], ys[1]), ys[2]), height - 1);
 
     auto AB = v1 - v0;
     auto AC = v2 - v0;
 
     for (int x = minX; x <= maxX; x++) {
         for (int y = minY; y <= maxY; y++) {
-            Vec2i p(x, y);
+            Vec3i p(x, y, 0);
             auto PA = v0 - p;
             Vec3f first(AB.x, AC.x, PA.x);
             Vec3f second(AB.y, AC.y, PA.y);
@@ -137,12 +165,14 @@ void triangle(const std::vector<Vec3f>& worldCoords, std::vector<TGAColor>& colo
                 
                 int curPos = y * width + x;
                 float z = worldCoords[0].z * t + worldCoords[1].z * u + worldCoords[2].z * v;
+                float aggIntensity = t * intensity[0] + u * intensity[1] + v * intensity[2];
+
                 auto c = TGAColor(
                     colors[0][2] * t + colors[1][2] * u + colors[2][2] * v,
                     colors[0][1] * t + colors[1][1] * u + colors[2][1] * v,
                     colors[0][0] * t + colors[1][0] * u + colors[2][0] * v,
                     255
-                ) * intensity;
+                ) * aggIntensity;
                 if (u >= 0 && v >= 0 && t >= 0 && z > zbuffer[curPos]) {
                     image.set(x, y, c);
                     zbuffer[curPos] = z;
@@ -156,29 +186,33 @@ int main() {
     TGAImage image(width, height, TGAImage::RGB);
     Model model("african_head/african_head.obj");
 
-    Vec3f light(0, 0, -1);
+    auto light = Vec3f(1,-1,1).normalize();
+    Vec3f cameraPos(1.0, 2.0, 3.0);
+    Vec3f center(0, 0.0, 0);
+
     std::vector<float> zbuffer(width * height, -std::numeric_limits<float>::max());
-    
-    Vec3f cameraPos(0, 0, 3.0);
-    auto shiftMat = perspectiveShift(cameraPos.z);
+
+    auto perspCoords = perspectiveShift(cameraPos.z);
+    auto camCoords = lookAt(cameraPos, center, Vec3f(0,1,0));;
+    auto viewportCoords = viewport(width / 8, height / 8, width * 3/4, height * 3/4);
+
     for (int f = 0; f < model.nfaces(); f++) {
-        std::vector<Vec3f> worldCoords = { model.vert(f, 0), model.vert(f, 1), model.vert(f, 2) };
-        std::vector<TGAColor> colors = { model.diffuse(model.uv(f, 0)), model.diffuse(model.uv(f, 1)), model.diffuse(model.uv(f, 2)) };
+        std::vector<Vec3f> worldCoords;
+        std::vector<Vec3i> screenCoords;
+        std::vector<TGAColor> colors;
+        std::vector<float> intensity;
 
         for (int i = 0; i < 3; i++) {
-            worldCoords[i] = fromHomogenous(shiftMat * toHomogenous(worldCoords[i]));
-            worldCoords[i].x = std::min(std::max(worldCoords[i].x, -1.f), 1.f);
-            worldCoords[i].y = std::min(std::max(worldCoords[i].y, -1.f), 1.f);
-            worldCoords[i].z = std::min(std::max(worldCoords[i].z, -1.f), 1.f);
+            auto worldCoord = model.vert(f, i);
+            auto normal = model.normal(f, i);
+            auto uv = model.uv(f, i);
+            
+            worldCoords.push_back(worldCoord);
+            screenCoords.push_back(fromHomogenous(viewportCoords * perspCoords * camCoords * toHomogenous(worldCoord)));
+            colors.push_back(model.diffuse(uv));
+            intensity.push_back(light * normal);
         }
-        
-        auto norm = cross((worldCoords[2] - worldCoords[0]), (worldCoords[1] - worldCoords[0]));
-        norm.normalize();
-        auto intensity = light * norm;
-        
-        if (intensity > 0) {
-            triangle(worldCoords, colors, zbuffer, image, intensity);
-        }
+        triangle(screenCoords, colors, zbuffer, image, intensity);
     }
 
     image.flip_vertically();
