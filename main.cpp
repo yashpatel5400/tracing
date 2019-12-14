@@ -12,6 +12,9 @@ const TGAColor red    = TGAColor(255,   0,   0, 255);
 const TGAColor green  = TGAColor(  0, 255,   0, 255);
 const TGAColor blue   = TGAColor(  0,   0, 255, 255);
 
+const int width = 500;
+const int height = 500;
+
 void line(Vec2i v0, Vec2i v1, TGAImage& image, TGAColor color) {    
     int x0 = v0.x;
     int y0 = v0.y;
@@ -78,7 +81,11 @@ void triangleLineSweep(Vec2i v0, Vec2i v1, Vec2i v2, TGAImage& image, TGAColor c
     }
 }
 
-void triangle(Vec2i v0, Vec2i v1, Vec2i v2, TGAImage& image, TGAColor color) {
+void triangle(Vec3f w0, Vec3f w1, Vec3f w2, std::vector<float>& zbuffer, TGAImage& image, TGAColor color) {
+    auto v0 = Vec2i(float(w0.x + 1) * width / 2, float(w0.y + 1) * height / 2);
+    auto v1 = Vec2i(float(w1.x + 1) * width / 2, float(w1.y + 1) * height / 2);
+    auto v2 = Vec2i(float(w2.x + 1) * width / 2, float(w2.y + 1) * height / 2);
+
     std::vector<int> xs = {v0.x, v1.x, v2.x};
     std::vector<int> ys = {v0.y, v1.y, v2.y};
 
@@ -104,9 +111,12 @@ void triangle(Vec2i v0, Vec2i v1, Vec2i v2, TGAImage& image, TGAColor color) {
                 auto u = res.x / res.z;
                 auto v = res.y / res.z;
                 auto t = 1 - u - v;
-
-                if (u >= 0 && v >= 0 && t >= 0) {
+                
+                int curPos = y * width + x;
+                float z = w0.z * t + w1.z * u + w2.z * v;
+                if (u >= 0 && v >= 0 && t >= 0 && z > zbuffer[curPos]) {
                     image.set(x, y, color);
+                    zbuffer[curPos] = z;
                 }
             }
         }   
@@ -114,8 +124,6 @@ void triangle(Vec2i v0, Vec2i v1, Vec2i v2, TGAImage& image, TGAColor color) {
 }
 
 int main() {
-    const int width = 500;
-    const int height = 500;
     TGAImage image(width, height, TGAImage::RGB);
     // Vec2i t0[3] = {Vec2i(10, 70),   Vec2i(50, 160),  Vec2i(70, 80)}; 
     // Vec2i t1[3] = {Vec2i(180, 50),  Vec2i(150, 1),   Vec2i(70, 180)}; 
@@ -127,6 +135,7 @@ int main() {
     Model model("african_head/african_head.obj");
 
     Vec3f light(0, 0, -1);
+    std::vector<float> zbuffer(width * height, std::numeric_limits<float>::min());
     for (int f = 0; f < model.nfaces(); f++) {
         auto w0 = model.vert(f, 0);
         auto w1 = model.vert(f, 1);
@@ -136,12 +145,8 @@ int main() {
         norm.normalize();
         auto intensity = 255.0 * (light * norm);
         
-        auto v0 = Vec2i(float(w0.x + 1) * width / 2, float(w0.y + 1) * height / 2);
-        auto v1 = Vec2i(float(w1.x + 1) * width / 2, float(w1.y + 1) * height / 2);
-        auto v2 = Vec2i(float(w2.x + 1) * width / 2, float(w2.y + 1) * height / 2);
-
         if (intensity > 0) {
-            triangle(v0, v1, v2, image, TGAColor(intensity, intensity, intensity, 255));
+            triangle(w0, w1, w2, zbuffer, image, TGAColor(intensity, intensity, intensity, 255));
         }
     }
 
