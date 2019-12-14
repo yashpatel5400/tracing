@@ -42,22 +42,10 @@ void line(Vec2i v0, Vec2i v1, TGAImage& image, TGAColor color) {
     }
 }
 
-void triangle(Vec2i v0, Vec2i v1, Vec2i v2, TGAImage& image, TGAColor color) {
-    // ATTEMPT #3
-    // std::vector<int> xs = {v0.x, v1.x, v2.x};
-    // std::vector<int> ys = {v0.y, v1.y, v2.y};
-
-    // float m0 = float(v1.y - v0.y) / float(v1.x - v0.x);
-    // float m1 = float(v2.y - v1.y) / float(v2.x - v1.x);
-    // float m2 = float(v0.y - v2.y) / float(v0.x - v2.x);
-    // std::vector<float> ms = {m0, m1, m2};
-    
+void triangleLineSweep(Vec2i v0, Vec2i v1, Vec2i v2, TGAImage& image, TGAColor color) {
     if (v0.y > v1.y) { std::swap(v0, v1); }
     if (v1.y > v2.y) { std::swap(v1, v2); }
     if (v0.y > v1.y) { std::swap(v0, v1); }
-    
-    // int minX = std::min(std::min(xs[0], xs[1]), xs[2]);
-    // int maxX = std::max(std::max(xs[0], xs[1]), xs[2]);
 
     for (int y = v0.y; y <= v1.y; y++) {
         float topAlpha = float(y - v0.y) / (v2.y - v0.y);
@@ -88,79 +76,67 @@ void triangle(Vec2i v0, Vec2i v1, Vec2i v2, TGAImage& image, TGAColor color) {
             image.set(x, y, color);
         }
     }
-    
-    // ATTEMPT #2
-    // float eps = 0.005;
-    // for (float alpha = 0.0; alpha < 1.0; alpha += eps) {
-    //     auto a = v0 * alpha + v1 * (1 - alpha);
-    //     auto b = v0 * alpha + v2 * (1 - alpha);
-    //     line(a, b, image, color);
-    // }
+}
 
-    // ATTEMPT #1    
-    // int minY = std::min(std::min(ys[0], ys[1]), ys[2]);
-    // int maxY = std::max(std::max(ys[0], ys[1]), ys[2]);
+void triangle(Vec2i v0, Vec2i v1, Vec2i v2, TGAImage& image, TGAColor color) {
+    std::vector<int> xs = {v0.x, v1.x, v2.x};
+    std::vector<int> ys = {v0.y, v1.y, v2.y};
 
-    // bool onLine = false;
-    // Vec2i startPoint, endPoint;
+    int minX = std::min(std::min(xs[0], xs[1]), xs[2]);
+    int maxX = std::max(std::max(xs[0], xs[1]), xs[2]);
+    int minY = std::min(std::min(ys[0], ys[1]), ys[2]);
+    int maxY = std::max(std::max(ys[0], ys[1]), ys[2]);
 
-    // for (int x = minX; x <= maxX; x++) {
-    //     for (int y = minY; y <= maxY; y++) {
-    //         for (int i = 0; i < 3; i++) {
-    //             int pred = std::round(ms[i] * (x - xs[i]) + ys[i]);
-    //             if (y == pred) {
-    //                 if (onLine) {
-    //                     endPoint = Vec2i(x, y);
-    //                     onLine = false;
-    //                     line(startPoint, endPoint, image, color);
-    //                 } else {
-    //                     startPoint = Vec2i(x, y);
-    //                     onLine = true;
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-    
+    auto AB = v1 - v0;
+    auto AC = v2 - v0;
 
-    // std::vector<Vec2i> vertices = { v0, v1, v2 };
-    // std::sort(vertices.begin(), vertices.end(), [](const Vec2i& a, const Vec2i& b) {
-    //     return a.y < b.y;
-    // });
- 
-    // line(v0, v1, image, color);
-    // line(v1, v2, image, color);
-    // line(v2, v0, image, color);
+    for (int x = minX; x <= maxX; x++) {
+        for (int y = minY; y <= maxY; y++) {
+            Vec2i p(x, y);
+            auto PA = v0 - p;
+            Vec3f first(AB.x, AC.x, PA.x);
+            Vec3f second(AB.y, AC.y, PA.y);
+            
+            Vec3f res = cross(first, second);
+            bool foundNeg = false;
+
+            if (res.z != 0) {
+                auto u = res.x / res.z;
+                auto v = res.y / res.z;
+                auto t = 1 - u - v;
+
+                if (u >= 0 && v >= 0 && t >= 0) {
+                    image.set(x, y, color);
+                }
+            }
+        }   
+    }
 }
 
 int main() {
-    const int width = 200;
-    const int height = 200;
+    const int width = 500;
+    const int height = 500;
     TGAImage image(width, height, TGAImage::RGB);
-    Vec2i t0[3] = {Vec2i(10, 70),   Vec2i(50, 160),  Vec2i(70, 80)}; 
-    Vec2i t1[3] = {Vec2i(180, 50),  Vec2i(150, 1),   Vec2i(70, 180)}; 
-    Vec2i t2[3] = {Vec2i(180, 150), Vec2i(120, 160), Vec2i(130, 180)}; 
-    triangle(t0[0], t0[1], t0[2], image, red); 
-    triangle(t1[0], t1[1], t1[2], image, white); 
-    triangle(t2[0], t2[1], t2[2], image, green);
+    // Vec2i t0[3] = {Vec2i(10, 70),   Vec2i(50, 160),  Vec2i(70, 80)}; 
+    // Vec2i t1[3] = {Vec2i(180, 50),  Vec2i(150, 1),   Vec2i(70, 180)}; 
+    // Vec2i t2[3] = {Vec2i(180, 150), Vec2i(120, 160), Vec2i(130, 180)}; 
+    // triangle(t0[0], t0[1], t0[2], image, red); 
+    // triangle(t1[0], t1[1], t1[2], image, white); 
+    // triangle(t2[0], t2[1], t2[2], image, green);
 
-    // Model model("african_head/african_head.obj");
+    Model model("african_head/african_head.obj");
 
-    // for (int f = 0; f < model.nfaces(); f++) {
-    //     // for (int v = 0; v < 3; v++) {
-            
-    //     //     // int x0 = (v0.x + 1.0) * float(width)/2;
-    //     //     // int x1 = (v1.x + 1.0) * float(width)/2;
-    //     //     // int y0 = (v0.y + 1.0) * float(height)/2;
-    //     //     // int y1 = (v1.y + 1.0) * float(height)/2;
-    //     //     // line(x0, y0, x1, y1, image, white);
-    //     // }
-    //     auto v0 = model.vert(f, 0);
-    //     auto v1 = model.vert(f, 1);
-    //     auto v2 = model.vert(f, 2);
-            
-    //     triangle(v0, v1, v2, image, white);
-    // }
+    for (int f = 0; f < model.nfaces(); f++) {
+        auto w0 = model.vert(f, 0);
+        auto w1 = model.vert(f, 1);
+        auto w2 = model.vert(f, 2);
+        
+        auto v0 = Vec2i(float(w0.x + 1) * width / 2, float(w0.y + 1) * height / 2);
+        auto v1 = Vec2i(float(w1.x + 1) * width / 2, float(w1.y + 1) * height / 2);
+        auto v2 = Vec2i(float(w2.x + 1) * width / 2, float(w2.y + 1) * height / 2);
+
+        triangle(v0, v1, v2, image, TGAColor(rand()%255, rand()%255, rand()%255, 255));
+    }
 
     image.flip_vertically();
     image.write_tga_file("output.tga");
